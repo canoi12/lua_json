@@ -5,7 +5,14 @@ C lib for encode(WIP) and decode JSON to Lua.
 ```lua
 local json = require('json')
 -- open file and read string
-local content = json.decode(json_str)
+local content = json.decode('{"a": "Hello", "b": "World", "c": ["from", "JSON"]}')
+print(content.a, content.b, content.c[1], content.c[2])
+```
+
+```lua
+local json = require('json')
+local str = json.encode({a='Hello', b='World', c={'from', 'Lua'}})
+print(str)
 ```
 
 By now it's just an adaptation of my [tinyjson](https://github.com/canoi12/tinyjson) lib to convert directly to Lua.
