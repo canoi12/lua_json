@@ -8,13 +8,14 @@ LFLAGS = -llua$(LUA_VERSION)
 ifeq ($(LUA_VERSION), jit)
 	INCLUDE = -I/usr/include/luajit-2.1
 	LFLAGS = -lluajit-5.1
+	CFLAGS += -DLUA_JIT
 endif
 
 .PHONY: $(NAME).so
 
 $(NAME).so: $(SOURCE)
 	@echo "Compiling $@ for lua$(LUA_VERSION)"
-	$(CC) -shared -fPIC $(SOURCE) -o $@ $(CFLAGS) $(LFLAGS) $(INCLUDE)
+	$(CC) -shared -fPIC $(SOURCE) -o $@ $(CFLAGS) $(LFLAGS) $(INCLUDE) -DBUILD_AS_SHARED
 
 $(NAME).a: $(NAME).o
 	@echo "Packing $@ for lua$(LUA_VERSION)"

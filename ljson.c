@@ -347,8 +347,13 @@ int s_encode_object(lua_State* L, int index) {
   return 1;
 }
 
+#if LUA_VERSION_NUM == 501
+#define lua_rawlen lua_objlen
+#endif
+
 int s_encode_table(lua_State* L, int index) {
-    if (lua_rawlen(L, index) > 0) {
+    int len = 0;
+    if (lua_rawlen(L, -1) > 0) {
       s_encode_array(L, index);
     } else s_encode_object(L, index);
     return 1;
