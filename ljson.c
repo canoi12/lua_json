@@ -63,9 +63,6 @@ static int s_decode_json(lua_State* L);
 /* encoder */
 static int s_encode_json(lua_State* L);
 
-/* utils */
-static char* s_file_read(const char* filename);
-
 static int l_json_encode(lua_State* L) {
   return s_encode_json(L);
 }
