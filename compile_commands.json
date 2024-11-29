@@ -1,0 +1,16 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-c",
+      "-fPIC",
+      "-I/usr/include/lua5.4",
+      "-o",
+      "ljson.so",
+      "ljson.c"
+    ],
+    "directory": "/home/canoi/lua_json",
+    "file": "/home/canoi/lua_json/ljson.c",
+    "output": "/home/canoi/lua_json/ljson.so"
+  }
+]
