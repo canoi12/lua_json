@@ -11,3 +11,7 @@ print(j)
 for i,v in pairs(j) do
   print(i, v)
 end
+
+for i,v in ipairs(j.list) do
+  print(i, v)
+end

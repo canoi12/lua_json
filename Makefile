@@ -1,7 +1,8 @@
+NAME = json
 CC = gcc
 SOURCE = ljson.c
 LUA_VERSION=5.4
-CFLAGS = -std=gnu99
+CFLAGS = -std=gnu99 -g -O2
 INCLUDE = -I/usr/include/lua$(LUA_VERSION)
 LFLAGS = -llua$(LUA_VERSION)
 ifeq ($(LUA_VERSION), jit)
@@ -9,16 +10,16 @@ ifeq ($(LUA_VERSION), jit)
 	LFLAGS = -lluajit-5.1
 endif
 
-.PHONY: json.so
+.PHONY: $(NAME).so
 
-json.so: $(SOURCE)
+$(NAME).so: $(SOURCE)
 	@echo "Compiling $@ for lua$(LUA_VERSION)"
 	$(CC) -shared -fPIC $(SOURCE) -o $@ $(CFLAGS) $(LFLAGS) $(INCLUDE)
 
-json.a: json.o
+$(NAME).a: $(NAME).o
 	@echo "Packing $@ for lua$(LUA_VERSION)"
 	$(AR) rcs json.a json.o
 
-json.o: $(SOURCE)
+$(NAME).o: $(SOURCE)
 	@echo "Compiling $@ for lua$(LUA_VERSION)"
 	$(CC) -c $(SOURCE) $(INCLUDE)
