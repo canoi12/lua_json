@@ -8,7 +8,7 @@ local json = require('json')
 local content = json.decode(json_str)
 ```
 
-By now it's just an adaptation of my [tinyjson](https://github.com/canoi12/tinyjson) lib for convert directly to Lua.
-The main focus is to directly embedd in a C-Lua project, but you can compile easily compile as a shared or static library.
+By now it's just an adaptation of my [tinyjson](https://github.com/canoi12/tinyjson) lib to convert directly to Lua.
+The main focus is to directly embed in a C-Lua project, but you can compile easily compile as a shared or static library.
 
 As I don't use any Lua version specific feature, I think the lib is compatible with all Lua versions (from 5.1 to 5.4 and jit).
