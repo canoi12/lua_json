@@ -47,10 +47,10 @@ struct ljson_parser_s {
 
 typedef struct ljson_parser_s ljson_parser_t;
 
-struct ljson_encode_s {
+struct ljson_encoder_s {
   int indent_level;
 };
-typedef struct ljson_encode_s ljson_encoder_t;
+typedef struct ljson_encoder_s ljson_encoder_t;
 
 static ljson_scanner_t scanner;
 static ljson_parser_t parser;
