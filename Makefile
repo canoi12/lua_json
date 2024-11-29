@@ -23,4 +23,4 @@ $(NAME).a: $(NAME).o
 
 $(NAME).o: $(SOURCE)
 	@echo "Compiling $@ for lua$(LUA_VERSION)"
-	$(CC) -c $(SOURCE) $(INCLUDE)
+	$(CC) -c $(SOURCE) -o $@ $(CFLAGS) $(INCLUDE)
