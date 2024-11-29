@@ -66,8 +66,6 @@ static int s_encode_json(lua_State* L);
 /* utils */
 static char* s_file_read(const char* filename);
 
-// ljson_t* ljson_parse(const char* json_str) { return s_parse_json(json_str); }
-
 static int l_json_encode(lua_State* L) {
   return s_encode_json(L);
 }
@@ -201,6 +199,7 @@ static ljson_token_t s_scan_token(void) {
     }
     return s_error_token("Unexpected character");
 }
+
 /*==============*
  *   Encoder    *
  *==============*/
@@ -375,12 +374,6 @@ static int s_encode_json(lua_State* L) {
 static int s_error_at(lua_State* L, ljson_token_t* token, const char* message) {
     if (decoder.panic_mode) return 0;
     decoder.panic_mode = 1;
-#if 0
-    fprintf(stderr, "[lua_json]:%d Error", token->line);
-    if (token->type == LJSON_TOKEN_EOF) fprintf(stderr, " at end");
-    else fprintf(stderr, " at %.*s,", token->length, token->start);
-    fprintf(stderr, " %s\n", message);
-#endif
     decoder.hand_error = 1;
     lua_pushfstring(L, "[lua_json]:%d Error", token->line);
     char* msg = malloc(token->length+1);
@@ -395,12 +388,6 @@ static int s_error_at(lua_State* L, ljson_token_t* token, const char* message) {
     return lua_error(L);
 }
 
-#if 0
-static void s_error_at_current(const char* message) {
-    s_error_at(&parser.current, message);
-}
-#endif
-
 static int s_parse_number(lua_State* L, ljson_token_t* token) {
     double value = 0;
     if (token->type == LJSON_TOKEN_MINUS) {
@@ -410,21 +397,17 @@ static int s_parse_number(lua_State* L, ljson_token_t* token) {
     else value = strtod(token->start, NULL);
     lua_pushnumber(L, value);
     return 1;
-    // return ljson_create_number(value);
 }
 
 static int s_parse_string(lua_State* L, ljson_token_t* token) {
-    //char* str = s_parse_cstring(token);
     int len = token->length;
     lua_pushlstring(L, token->start+1, len-2);
-    //lua_pushstring(L, str);
     return 1;
 }
 
 static int s_parse_json_token(lua_State* L, ljson_token_t* token);
 
 static int s_parse_object(lua_State* L) {
-    // ljson_t* obj = ljson_create_object();
     lua_newtable(L);
     ljson_token_t token = s_scan_token();
     while (token.type != LJSON_TOKEN_RBRACE) {
