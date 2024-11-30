@@ -58,17 +58,34 @@ static ljson_scanner_t scanner;
 static ljson_decoder_t decoder;
 static ljson_encoder_t encoder;
 
+static void s_init_scanner(const char* json_str);
+static ljson_token_t s_scan_token();
+
 /* decoder */
-static int s_decode_json(lua_State* L);
+static int s_parse_json_token(lua_State* L, ljson_token_t* token);
 /* encoder */
-static int s_encode_json(lua_State* L);
+static int s_encode_table(lua_State* L, int index);
 
 static int l_json_encode(lua_State* L) {
-  return s_encode_json(L);
+    encoder.indent_level = 0;
+    encoder.tmp_buffer = malloc(512);
+    encoder.size = 512;
+    encoder.offset = 0;
+    if (!lua_istable(L, 1))
+        return luaL_argerror(L, 1, "must be a table");
+    s_encode_table(L, 1);
+    lua_pushlstring(L, encoder.tmp_buffer, encoder.offset);
+    free(encoder.tmp_buffer);
+    return 1;
 }
 
 static int l_json_decode(lua_State* L) {
-    return s_decode_json(L);
+    const char* json = luaL_checkstring(L, 1);
+    s_init_scanner(json);
+    decoder.hand_error = 0;
+    decoder.panic_mode = 0;
+    ljson_token_t token = s_scan_token();
+    return s_parse_json_token(L, &token);
 }
 
 int luaopen_json(lua_State* L) {
@@ -169,13 +186,13 @@ static ljson_token_t identifier_token() {
     return s_make_token(identifier_type());
 }
 
-static void s_init_scanner(const char* json_str) {
+void s_init_scanner(const char* json_str) {
     scanner.start = json_str;
     scanner.current = json_str;
     scanner.line = 1;
 }
 
-static ljson_token_t s_scan_token(void) {
+ljson_token_t s_scan_token(void) {
     skip_whitespace();
     scanner.start = scanner.current;
     if (is_at_end()) return s_make_token(LJSON_TOKEN_EOF);
@@ -201,15 +218,19 @@ static ljson_token_t s_scan_token(void) {
  *   Encoder    *
  *==============*/
 
+static void s_ensure_size(lua_State* L, int len) {
+    if ((encoder.offset + len) > encoder.size) {
+        encoder.size *= 2;
+        encoder.tmp_buffer = realloc(encoder.tmp_buffer, encoder.size);
+    }
+}
+
 static int s_encode_string(lua_State* L, int index) {
     char* buf = encoder.tmp_buffer + encoder.offset;
     buf[0] = '"';
     size_t len;
     const char* str = luaL_checklstring(L, index, &len);
-    if ((encoder.offset + len + 2) > encoder.size) {
-        encoder.size *= 2;
-        encoder.tmp_buffer = realloc(encoder.tmp_buffer, encoder.size);
-    }
+    s_ensure_size(L, len+2);
     buf++;
     strncpy(buf, str, len);
     buf += len;
@@ -224,10 +245,7 @@ static int s_encode_integer(lua_State* L, int index) {
     int val = luaL_checkinteger(L, index);
     sprintf(aux, "%d", val);
     int len = strlen(aux);
-    if ((encoder.offset + len) > encoder.size) {
-        encoder.size *= 2;
-        encoder.tmp_buffer = realloc(encoder.tmp_buffer, encoder.size);
-    }
+    s_ensure_size(L, len);
     strncpy(buf, aux, len);
     buf += len;
     encoder.offset += len;
@@ -238,10 +256,7 @@ static int s_encode_boolean(lua_State* L, int index) {
     char* buf = encoder.tmp_buffer + encoder.offset;
     int val = lua_toboolean(L, index);
     int len = val ? 4 : 5;
-    if ((encoder.offset + len) > encoder.size) {
-        encoder.size *= 2;
-        encoder.tmp_buffer = realloc(encoder.tmp_buffer, encoder.size);
-    }
+    s_ensure_size(L, len);
     if (val)
         strncpy(buf, "true", len);
     else
@@ -254,10 +269,7 @@ static int s_encode_boolean(lua_State* L, int index) {
 static int s_encode_null(lua_State* L) {
     char* buf = encoder.tmp_buffer + encoder.offset;
     int len = 4;
-    if ((encoder.offset + len) > encoder.size) {
-        encoder.size *= 2;
-        encoder.tmp_buffer = realloc(encoder.tmp_buffer, encoder.size);
-    }
+    s_ensure_size(L, len);
     strncpy(buf, "null", len);
     buf += len;
     encoder.offset += len;
@@ -274,12 +286,7 @@ int s_encode_array(lua_State* L, int index) {
     lua_pushvalue(L, index);
     lua_pushnil(L);
     encoder.offset++;
-    // check for space
-    if ((encoder.offset + 4) > encoder.size) {
-        encoder.size *= 2;
-        encoder.tmp_buffer = realloc(encoder.tmp_buffer, encoder.size);
-    }
-
+    s_ensure_size(L, 4);
     while (lua_next(L, -2)) {
         lua_pushvalue(L, -1);
         switch (lua_type(L, -1)) {
@@ -295,11 +302,7 @@ int s_encode_array(lua_State* L, int index) {
         lua_pop(L, 2);
     }
     lua_pop(L, 1);
-
-    encoder.offset -= 1;
-    buf = encoder.tmp_buffer + encoder.offset;
-    buf[0] = ']';
-    encoder.offset += 1;
+    encoder.tmp_buffer[encoder.offset-1] = ']';
 
     return 1;
 }
@@ -309,11 +312,7 @@ int s_encode_object(lua_State* L, int index) {
     buf[0] = '{';
     lua_pushvalue(L, index);
     lua_pushnil(L);
-    // check for space
-    if ((encoder.offset + 4) > encoder.size) {
-        encoder.size *= 2;
-        encoder.tmp_buffer = realloc(encoder.tmp_buffer, encoder.size);
-    }
+    s_ensure_size(L, 4);
     encoder.offset++;
 
     while (lua_next(L, -2)) {
@@ -335,13 +334,9 @@ int s_encode_object(lua_State* L, int index) {
         lua_pop(L, 2);
     }
     lua_pop(L, 1);
+    encoder.tmp_buffer[encoder.offset-1] = '}';
 
-    encoder.offset -= 1;
-    buf = encoder.tmp_buffer + encoder.offset;
-    buf[0] = '}';
-    encoder.offset += 1;
-
-  return 1;
+    return 1;
 }
 
 #if LUA_VERSION_NUM == 501
@@ -353,19 +348,6 @@ int s_encode_table(lua_State* L, int index) {
     if (lua_rawlen(L, index) > 0) {
       s_encode_array(L, index);
     } else s_encode_object(L, index);
-    return 1;
-}
-
-static int s_encode_json(lua_State* L) {
-    encoder.indent_level = 0;
-    encoder.tmp_buffer = malloc(512);
-    encoder.size = 512;
-    encoder.offset = 0;
-    if (!lua_istable(L, 1))
-        return luaL_argerror(L, 1, "must be a table");
-    s_encode_table(L, 1);
-    lua_pushlstring(L, encoder.tmp_buffer, encoder.offset);
-    free(encoder.tmp_buffer);
     return 1;
 }
 
@@ -482,13 +464,4 @@ int s_parse_json_token(lua_State* L, ljson_token_t *token) {
         return s_error_at(L, token, token->start);
     }
     return s_error_at(L, token, "unkown symbol");
-}
-
-int s_decode_json(lua_State* L) {
-    const char* json = luaL_checkstring(L, 1);
-    s_init_scanner(json);
-    decoder.hand_error = 0;
-    decoder.panic_mode = 0;
-    ljson_token_t token = s_scan_token();
-    return s_parse_json_token(L, &token);
 }
