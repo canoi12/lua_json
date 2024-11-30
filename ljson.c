@@ -350,7 +350,7 @@ int s_encode_object(lua_State* L, int index) {
 
 int s_encode_table(lua_State* L, int index) {
     int len = 0;
-    if (lua_rawlen(L, -1) > 0) {
+    if (lua_rawlen(L, index) > 0) {
       s_encode_array(L, index);
     } else s_encode_object(L, index);
     return 1;
