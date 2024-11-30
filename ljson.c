@@ -49,8 +49,6 @@ typedef struct ljson_decoder_s ljson_decoder_t;
 
 struct ljson_encoder_s {
   int indent_level;
-  int offset, size;
-  char* tmp_buffer;
 };
 typedef struct ljson_encoder_s ljson_encoder_t;
 
@@ -68,14 +66,10 @@ static int s_encode_table(lua_State* L, int index);
 
 static int l_json_encode(lua_State* L) {
     encoder.indent_level = 0;
-    encoder.tmp_buffer = malloc(512);
-    encoder.size = 512;
-    encoder.offset = 0;
+    int top = lua_gettop(L);
     if (!lua_istable(L, 1))
         return luaL_argerror(L, 1, "must be a table");
     s_encode_table(L, 1);
-    lua_pushlstring(L, encoder.tmp_buffer, encoder.offset);
-    free(encoder.tmp_buffer);
     return 1;
 }
 
@@ -218,61 +212,27 @@ ljson_token_t s_scan_token(void) {
  *   Encoder    *
  *==============*/
 
-static void s_ensure_size(lua_State* L, int len) {
-    if ((encoder.offset + len) > encoder.size) {
-        encoder.size *= 2;
-        encoder.tmp_buffer = realloc(encoder.tmp_buffer, encoder.size);
-    }
-}
-
 static int s_encode_string(lua_State* L, int index) {
-    char* buf = encoder.tmp_buffer + encoder.offset;
-    buf[0] = '"';
-    size_t len;
-    const char* str = luaL_checklstring(L, index, &len);
-    s_ensure_size(L, len+2);
-    buf++;
-    strncpy(buf, str, len);
-    buf += len;
-    buf[0] = '"';
-    encoder.offset += len+2;
+    const char* str = luaL_checkstring(L, index);
+    lua_pushfstring(L, "\"%s\"", str);
     return 1;
 }
 
 static int s_encode_integer(lua_State* L, int index) {
-    char* buf = encoder.tmp_buffer + encoder.offset;
-    char aux[128];
-    int val = luaL_checkinteger(L, index);
-    sprintf(aux, "%d", val);
-    int len = strlen(aux);
-    s_ensure_size(L, len);
-    strncpy(buf, aux, len);
-    buf += len;
-    encoder.offset += len;
+    float val = luaL_checknumber(L, index);
+    lua_pushfstring(L, "%f", val);
     return 1;
 }
 
 static int s_encode_boolean(lua_State* L, int index) {
-    char* buf = encoder.tmp_buffer + encoder.offset;
     int val = lua_toboolean(L, index);
-    int len = val ? 4 : 5;
-    s_ensure_size(L, len);
-    if (val)
-        strncpy(buf, "true", len);
-    else
-        strncpy(buf, "false", len);
-    buf += len;
-    encoder.offset += len;
+    if (val) lua_pushstring(L, "true");
+    else lua_pushstring(L, "false");
     return 1;
 }
 
 static int s_encode_null(lua_State* L) {
-    char* buf = encoder.tmp_buffer + encoder.offset;
-    int len = 4;
-    s_ensure_size(L, len);
-    strncpy(buf, "null", len);
-    buf += len;
-    encoder.offset += len;
+    lua_pushstring(L, "null");
     return 1;
 }
 
@@ -281,60 +241,81 @@ static int s_encode_array(lua_State* L, int index);
 static int s_encode_object(lua_State* L, int index);
 
 int s_encode_array(lua_State* L, int index) {
-    char* buf = encoder.tmp_buffer + encoder.offset;
-    buf[0] = '[';
+    lua_pushstring(L, "[");
+    int top = lua_gettop(L);
+
     lua_pushvalue(L, index);
     lua_pushnil(L);
-    encoder.offset++;
-    s_ensure_size(L, 4);
-    while (lua_next(L, -2)) {
+    int has_next = lua_next(L, -2);
+    while (has_next != 0) {
         lua_pushvalue(L, -1);
-        switch (lua_type(L, -1)) {
-            case LUA_TSTRING: s_encode_string(L, -1); break;
-            case LUA_TNUMBER: s_encode_integer(L, -1); break;
-            case LUA_TBOOLEAN: s_encode_boolean(L, -1); break;
-            case LUA_TTABLE: s_encode_table(L, -1); break;
+        int t = lua_gettop(L);
+        lua_pushvalue(L, top);
+        switch (lua_type(L, t)) {
+            case LUA_TSTRING: s_encode_string(L, t); break;
+            case LUA_TNUMBER: s_encode_integer(L, t); break;
+            case LUA_TBOOLEAN: s_encode_boolean(L, t); break;
+            case LUA_TTABLE: s_encode_table(L, t); break;
             case LUA_TNIL: s_encode_null(L); break;
         }
-        buf = encoder.tmp_buffer + encoder.offset;
-        buf[0] = ',';
-        encoder.offset += 1;
+        lua_concat(L, 2);
+        lua_replace(L, top);
         lua_pop(L, 2);
+        has_next = lua_next(L, -2);
+        if (has_next) {
+            lua_pushvalue(L, top);
+            lua_pushstring(L, ",");
+            lua_concat(L, 2);
+            lua_replace(L, top);
+        }
     }
     lua_pop(L, 1);
-    encoder.tmp_buffer[encoder.offset-1] = ']';
+    lua_pushstring(L, "]");
+    lua_concat(L, 2);
 
     return 1;
 }
 
 int s_encode_object(lua_State* L, int index) {
-    char* buf = encoder.tmp_buffer + encoder.offset;
-    buf[0] = '{';
+    lua_pushstring(L, "{");
+    int top = lua_gettop(L);
+
     lua_pushvalue(L, index);
     lua_pushnil(L);
-    s_ensure_size(L, 4);
-    encoder.offset++;
 
-    while (lua_next(L, -2)) {
+    int has_next = lua_next(L, -2);
+    while (has_next) {
+        int t = lua_gettop(L);
         lua_pushvalue(L, -2);
-        s_encode_string(L, -1);
-        buf = encoder.tmp_buffer + encoder.offset;
-        buf[0] = ':';
-        encoder.offset += 1;
-        switch (lua_type(L, -2)) {
-            case LUA_TSTRING: s_encode_string(L, -2); break;
-            case LUA_TNUMBER: s_encode_integer(L, -2); break;
-            case LUA_TBOOLEAN: s_encode_boolean(L, -2); break;
-            case LUA_TTABLE: s_encode_table(L, -2); break;
+
+        lua_pushvalue(L, top);
+
+        s_encode_string(L, -2);
+        lua_pushstring(L, ":");
+        lua_concat(L, 3);
+
+        switch (lua_type(L, t)) {
+            case LUA_TSTRING: s_encode_string(L, t); break;
+            case LUA_TNUMBER: s_encode_integer(L, t); break;
+            case LUA_TBOOLEAN: s_encode_boolean(L, t); break;
+            case LUA_TTABLE: s_encode_table(L, t); break;
             case LUA_TNIL: s_encode_null(L); break;
         }
-        buf = encoder.tmp_buffer + encoder.offset;
-        buf[0] = ',';
-        encoder.offset += 1;
+        lua_concat(L, 2);
+        lua_replace(L, top);
         lua_pop(L, 2);
+        has_next = lua_next(L, -2);
+        if (has_next) {
+            lua_pushvalue(L, top);
+            lua_pushstring(L, ",");
+            lua_concat(L, 2);
+            lua_replace(L, top);
+        }
     }
     lua_pop(L, 1);
-    encoder.tmp_buffer[encoder.offset-1] = '}';
+
+    lua_pushstring(L, "}");
+    lua_concat(L, 2);
 
     return 1;
 }
