@@ -15,7 +15,11 @@ endif
 
 $(NAME).so: $(SOURCE)
 	@echo "Compiling $@ for lua$(LUA_VERSION)"
-	$(CC) -shared -fPIC $(SOURCE) -o $@ $(CFLAGS) $(LFLAGS) $(INCLUDE) -DBUILD_AS_SHARED
+	$(CC) -shared -fPIC $(SOURCE) -o $@ $(CFLAGS) $(LFLAGS) $(INCLUDE)
+
+$(NAME).dll: $(SOURCE)
+	@echo "Compiling $@ for lua$(LUA_VERSION)"
+	$(CC) -shared -fPIC $(SOURCE) -o $@ $(CFLAGS) $(LFLAGS) $(INCLUDE) -DBUILD_AS_DLL
 
 $(NAME).a: $(NAME).o
 	@echo "Packing $@ for lua$(LUA_VERSION)"

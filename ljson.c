@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ljson.h"
+
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
 
 typedef enum {
   LJSON_TOKEN_NULL = 0,   /* Null token                 'null'   */
@@ -82,7 +85,15 @@ static int l_json_decode(lua_State* L) {
     return s_parse_json_token(L, &token);
 }
 
-int luaopen_json(lua_State* L) {
+#ifdef BUILD_AS_DLL
+LJSON_API __declspec(dllexport)
+#endif
+
+#ifndef LJSON_API
+#define LJSON_API
+#endif
+
+LJSON_API int luaopen_json(lua_State* L) {
     luaL_Reg reg[] = {
         { "encode", l_json_encode },
         { "decode", l_json_decode },
