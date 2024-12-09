@@ -86,7 +86,7 @@ static int l_json_decode(lua_State* L) {
 }
 
 #ifdef BUILD_AS_DLL
-LJSON_API __declspec(dllexport)
+#define LJSON_API __declspec(dllexport)
 #endif
 
 #ifndef LJSON_API
